@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+            color: #fff;
+        }
+        
+        .upload-section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .file-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        input[type="file"] {
+            padding: 10px;
+            background: #3a3a3a;
+            color: #fff;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .control-panel {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .control-panel button {
+            flex: 0 0 auto;
+        }
+        
+        #playNext {
+            background: #2196F3;
+        }
+        
+        #playNext:hover {
+            background: #0976d2;
+        }
+        
+        #pause {
+            background: #ff9800;
+        }
+        
+        #pause:hover {
+            background: #e68900;
+        }
+        
+        #skip {
+            background: #9c27b0;
+        }
+        
+        #skip:hover {
+            background: #7b1fa2;
+        }
+        
+        .sequences-container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .sequence-item {
+            background: #3a3a3a;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .sequence-item.current {
+            background: #4a4a4a;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .sequence-item.next {
+            background: #3a3a4a;
+            border-left: 4px solid #2196F3;
+        }
+        
+        .sequence-number {
+            font-weight: bold;
+            min-width: 40px;
+            color: #888;
+        }
+        
+        .sequence-text {
+            flex: 1;
+            padding: 8px;
+            background: #2a2a2a;
+            border: 1px solid #4a4a4a;
+            color: #fff;
+            border-radius: 4px;
+            font-family: monospace;
+            resize: vertical;
+            min-height: 40px;
+        }
+        
+        .sequence-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .save-btn {
+            background: #4CAF50;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        
+        .status-bar {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-info {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #666;
+        }
+        
+        .status-indicator.active {
+            background: #4CAF50;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #4CAF50;
+            display: block;
+        }
+        
+        .message.error {
+            background: #f44336;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Control Admin Panel</h1>
+        
+        <div class="status-bar">
+            <div class="status-info">
+                <div class="status-item">
+                    <span class="status-indicator" id="connectionStatus"></span>
+                    <span>Connection</span>
+                </div>
+                <div class="status-item">
+                    <span>Current: </span>
+                    <span id="currentIndex">0</span> / <span id="totalSequences">0</span>
+                </div>
+                <div class="status-item">
+                    <span>Status: </span>
+                    <span id="playStatus">Idle</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="upload-section">
+            <h3>Upload JSON File</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="jsonFile" accept=".json">
+                <button id="loadData">Load Data</button>
+            </div>
+            <div id="uploadMessage" class="message"></div>
+        </div>
+        
+        <div class="control-panel">
+            <button id="playNext">▶ Play Next</button>
+            <button id="pause">⏸ Pause</button>
+            <button id="resume" style="display:none;">▶ Resume</button>
+            <button id="skip">⏭ Skip Next</button>
+        </div>
+        
+        <div class="sequences-container">
+            <h3>Text Sequences</h3>
+            <div id="sequencesList"></div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let sequences = [];
+        let currentIndex = 0;
+        
+        // Socket connection status
+        socket.on('connect', () => {
+            document.getElementById('connectionStatus').classList.add('active');
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('connectionStatus').classList.remove('active');
+        });
+        
+        // Load data button
+        document.getElementById('loadData').addEventListener('click', async () => {
+            const fileInput = document.getElementById('jsonFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showMessage('uploadMessage', 'Please select a JSON file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/upload_json', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    sequences = data.sequences;
+                    renderSequences();
+                    showMessage('uploadMessage', data.message, 'success');
+                    updateStatus();
+                } else {
+                    showMessage('uploadMessage', data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('uploadMessage', 'Error uploading file: ' + error, 'error');
+            }
+        });
+        
+        // Render sequences
+        function renderSequences() {
+            const container = document.getElementById('sequencesList');
+            container.innerHTML = '';
+            
+            sequences.forEach((seq, index) => {
+                const div = document.createElement('div');
+                div.className = 'sequence-item';
+                div.id = `seq-${index}`;
+                
+                if (index === currentIndex) {
+                    div.classList.add('current');
+                } else if (index === currentIndex + 1) {
+                    div.classList.add('next');
+                }
+                
+                div.innerHTML = `
+                    <span class="sequence-number">#${index + 1}</span>
+                    <textarea class="sequence-text" data-index="${index}">${seq.text || ''}</textarea>
+                    <div class="sequence-actions">
+                        <button class="save-btn" onclick="saveSequence(${index})">Save</button>
+                    </div>
+                `;
+                
+                container.appendChild(div);
+            });
+        }
+        
+        // Save sequence
+        async function saveSequence(index) {
+            const textarea = document.querySelector(`textarea[data-index="${index}"]`);
+            const text = textarea.value;
+            
+            try {
+                const response = await fetch('/update_sequence', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ index, text })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    sequences[index].text = text;
+                    showMessage('uploadMessage', `Sequence ${index + 1} updated`, 'success');
+                }
+            } catch (error) {
+                showMessage('uploadMessage', 'Error updating sequence', 'error');
+            }
+        }
+        
+        // Play next
+        document.getElementById('playNext').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/play_next', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentIndex++;
+                    updateStatus();
+                    renderSequences();
+                } else {
+                    showMessage('uploadMessage', 'No more sequences to play', 'error');
+                }
+            } catch (error) {
+                showMessage('uploadMessage', 'Error playing next', 'error');
+            }
+        });
+        
+        // Skip next
+        document.getElementById('skip').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/skip_next', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentIndex++;
+                    updateStatus();
+                    renderSequences();
+                }
+            } catch (error) {
+                showMessage('uploadMessage', 'Error skipping', 'error');
+            }
+        });
+        
+        // Pause
+        document.getElementById('pause').addEventListener('click', async () => {
+            try {
+                await fetch('/pause', { method: 'POST' });
+                document.getElementById('pause').style.display = 'none';
+                document.getElementById('resume').style.display = 'inline-block';
+                document.getElementById('playStatus').textContent = 'Paused';
+            } catch (error) {
+                showMessage('uploadMessage', 'Error pausing', 'error');
+            }
+        });
+        
+        // Resume
+        document.getElementById('resume').addEventListener('click', async () => {
+            try {
+                await fetch('/resume', { method: 'POST' });
+                document.getElementById('resume').style.display = 'none';
+                document.getElementById('pause').style.display = 'inline-block';
+                document.getElementById('playStatus').textContent = 'Playing';
+            } catch (error) {
+                showMessage('uploadMessage', 'Error resuming', 'error');
+            }
+        });
+        
+        // Update status
+        async function updateStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                
+                currentIndex = data.current_index;
+                document.getElementById('currentIndex').textContent = currentIndex;
+                document.getElementById('totalSequences').textContent = data.total_sequences;
+                
+                if (data.is_playing) {
+                    document.getElementById('playStatus').textContent = data.is_paused ? 'Paused' : 'Playing';
+                } else {
+                    document.getElementById('playStatus').textContent = 'Idle';
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+            }
+        }
+        
+        // Show message
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `message ${type}`;
+            
+            setTimeout(() => {
+                element.className = 'message';
+            }, 3000);
+        }
+        
+        // Initial status update
+        updateStatus();
+        setInterval(updateStatus, 2000);
+    </script>
+</body>
+</html>

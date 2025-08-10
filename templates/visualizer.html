@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #visualizer {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="visualizer"></canvas>
+    <audio id="audio" crossorigin="anonymous"></audio>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        
+        // Get canvas and audio elements
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('audio');
+
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth * 0.8;
+            canvas.height = window.innerHeight * 0.6;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Web Audio API setup
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioContext.createAnalyser();
+        let source = null;
+        let isConnected = false;
+
+        function setupAudioSource() {
+            if (!isConnected && audio.src) {
+                source = audioContext.createMediaElementSource(audio);
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
+                isConnected = true;
+            }
+        }
+
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        // Visualization
+        function draw() {
+            requestAnimationFrame(draw);
+            
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Clear canvas with slight fade effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+            
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = (dataArray[i] / 255) * canvas.height * 0.7;
+                
+                // Create gradient from white to gray
+                const gradient = ctx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.5, '#d0d0d0');
+                gradient.addColorStop(1, '#808080');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                
+                // Add reflection effect
+                ctx.fillStyle = `rgba(128, 128, 128, ${0.3 - (i / bufferLength) * 0.3})`;
+                ctx.fillRect(x, canvas.height, barWidth, barHeight * 0.3);
+                
+                x += barWidth + 1;
+            }
+        }
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('play_audio', (data) => {
+            console.log('Playing audio:', data.audio_url);
+            audio.src = data.audio_url;
+            
+            // Setup audio source if not already done
+            setupAudioSource();
+            
+            // Start playback
+            audioContext.resume().then(() => {
+                audio.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                });
+            });
+        });
+
+        socket.on('pause_audio', () => {
+            console.log('Pausing audio');
+            audio.pause();
+        });
+
+        socket.on('resume_audio', () => {
+            console.log('Resuming audio');
+            audio.play();
+        });
+
+        // Start visualization
+        draw();
+
+        // Handle audio end event
+        audio.addEventListener('ended', () => {
+            console.log('Audio ended');
+            socket.emit('audio_ended');
+        });
+
+        // Auto-start visualization on first user interaction
+        document.addEventListener('click', () => {
+            audioContext.resume();
+        }, { once: true });
+    </script>
+</body>
+</html>

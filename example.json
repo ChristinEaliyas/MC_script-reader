@@ -1,0 +1,19 @@
+{
+  "sequences": [
+    {
+      "text": "Welcome to the audio visualizer demonstration. This is the first sequence."
+    },
+    {
+      "text": "This is the second sequence. The visualizer responds to the audio frequencies."
+    },
+    {
+      "text": "Here's the third sequence. You can edit these texts in the admin panel."
+    },
+    {
+      "text": "The fourth sequence shows how the system processes audio in real time."
+    },
+    {
+      "text": "This is the final sequence. Thank you for using the audio visualizer."
+    }
+  ]
+}
