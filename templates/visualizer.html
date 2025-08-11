@@ -1,149 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Visualizer</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background-color: #000000;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            width: 100vw;
-        }
-
-        #visualizer {
-            display: block;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Talking Smiley Visualizer</title>
+<style>
+    body {
+        margin: 0;
+        background-color: black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+    }
+    .smiley {
+        position: relative;
+        width: 400px;
+        height: 400px;
+    }
+    .eye {
+        position: absolute;
+        background-color: white;
+        border-radius: 50%;
+        width: 25px;
+        height: 40px;
+        top: 100px;
+    }
+    .eye.left { left: 120px; }
+    .eye.right { right: 120px; }
+    canvas {
+        position: absolute;
+        bottom: 120px;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 60px;
+    }
+</style>
 </head>
 <body>
-    <canvas id="visualizer"></canvas>
+    <div class="smiley">
+        <div class="eye left"></div>
+        <div class="eye right"></div>
+        <canvas id="visualizer" width="200" height="60"></canvas>
+    </div>
     <audio id="audio" crossorigin="anonymous"></audio>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    // Initialize Socket.IO
+    const socket = io();
     
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script>
-        // Initialize Socket.IO
-        const socket = io();
+    // Get canvas and audio elements
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    const audio = document.getElementById('audio');
+
+    // Web Audio API setup
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    let source = null;
+    let isConnected = false;
+
+    function setupAudioSource() {
+        if (!isConnected && audio.src) {
+            source = audioContext.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            isConnected = true;
+        }
+    }
+
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    // Visualization - realistic lip movement effect
+    function draw() {
+        requestAnimationFrame(draw);
         
-        // Get canvas and audio elements
-        const canvas = document.getElementById('visualizer');
-        const ctx = canvas.getContext('2d');
-        const audio = document.getElementById('audio');
-
-        // Set canvas size
-        function resizeCanvas() {
-            canvas.width = window.innerWidth * 0.8;
-            canvas.height = window.innerHeight * 0.6;
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Calculate average audio level for mouth opening
+        let avgLevel = 0;
+        for (let i = 0; i < bufferLength; i++) {
+            avgLevel += dataArray[i];
         }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
-        // Web Audio API setup
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const analyser = audioContext.createAnalyser();
-        let source = null;
-        let isConnected = false;
-
-        function setupAudioSource() {
-            if (!isConnected && audio.src) {
-                source = audioContext.createMediaElementSource(audio);
-                source.connect(analyser);
-                analyser.connect(audioContext.destination);
-                isConnected = true;
-            }
+        avgLevel = avgLevel / bufferLength / 255;
+        
+        // Smooth the mouth opening/closing
+        const mouthOpenness = Math.max(0.1, avgLevel * 2); // Minimum opening of 0.1
+        
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        
+        // Draw mouth as an ellipse that changes based on audio
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        
+        // Create mouth shape - smaller for better proportions
+        const mouthWidth = canvas.width * 0.5; // 50% of canvas width
+        const mouthHeight = Math.max(4, mouthOpenness * 25); // Height varies with audio
+        
+        // Draw elliptical mouth
+        ctx.ellipse(centerX, centerY, mouthWidth / 2, mouthHeight / 2, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Add inner mouth (darker area) for depth
+        if (mouthHeight > 8) {
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.6)';
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, (mouthWidth / 2) * 0.8, (mouthHeight / 2) * 0.6, 0, 0, 2 * Math.PI);
+            ctx.fill();
         }
-
-        analyser.fftSize = 256;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        // Visualization
-        function draw() {
-            requestAnimationFrame(draw);
-            
-            analyser.getByteFrequencyData(dataArray);
-            
-            // Clear canvas with slight fade effect
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            const barWidth = (canvas.width / bufferLength) * 2.5;
-            let barHeight;
-            let x = 0;
-            
-            for (let i = 0; i < bufferLength; i++) {
-                barHeight = (dataArray[i] / 255) * canvas.height * 0.7;
-                
-                // Create gradient from white to gray
-                const gradient = ctx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
-                gradient.addColorStop(0, '#ffffff');
-                gradient.addColorStop(0.5, '#d0d0d0');
-                gradient.addColorStop(1, '#808080');
-                
-                ctx.fillStyle = gradient;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                
-                // Add reflection effect
-                ctx.fillStyle = `rgba(128, 128, 128, ${0.3 - (i / bufferLength) * 0.3})`;
-                ctx.fillRect(x, canvas.height, barWidth, barHeight * 0.3);
-                
-                x += barWidth + 1;
-            }
+        
+        // Add subtle highlight on top lip
+        if (mouthHeight > 12) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY - mouthHeight * 0.15, (mouthWidth / 2) * 0.9, mouthHeight * 0.1, 0, 0, Math.PI, true);
+            ctx.fill();
         }
+    }
 
-        // Socket event handlers
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
+    // Socket event handlers
+    socket.on('connect', () => {
+        console.log('Connected to server');
+    });
 
-        socket.on('play_audio', (data) => {
-            console.log('Playing audio:', data.audio_url);
-            audio.src = data.audio_url;
-            
-            // Setup audio source if not already done
-            setupAudioSource();
-            
-            // Start playback
-            audioContext.resume().then(() => {
-                audio.play().catch(error => {
-                    console.error('Error playing audio:', error);
-                });
+    socket.on('play_audio', (data) => {
+        console.log('Playing audio:', data.audio_url);
+        audio.src = data.audio_url;
+        
+        // Setup audio source if not already done
+        setupAudioSource();
+        
+        // Start playback
+        audioContext.resume().then(() => {
+            audio.play().catch(error => {
+                console.error('Error playing audio:', error);
             });
         });
+    });
 
-        socket.on('pause_audio', () => {
-            console.log('Pausing audio');
-            audio.pause();
-        });
+    socket.on('pause_audio', () => {
+        console.log('Pausing audio');
+        audio.pause();
+    });
 
-        socket.on('resume_audio', () => {
-            console.log('Resuming audio');
-            audio.play();
-        });
+    socket.on('resume_audio', () => {
+        console.log('Resuming audio');
+        audio.play();
+    });
 
-        // Start visualization
-        draw();
+    // Start visualization
+    draw();
 
-        // Handle audio end event
-        audio.addEventListener('ended', () => {
-            console.log('Audio ended');
-            socket.emit('audio_ended');
-        });
+    // Handle audio end event
+    audio.addEventListener('ended', () => {
+        console.log('Audio ended');
+        socket.emit('audio_ended');
+    });
 
-        // Auto-start visualization on first user interaction
-        document.addEventListener('click', () => {
-            audioContext.resume();
-        }, { once: true });
-    </script>
+    // Auto-start visualization on first user interaction
+    document.addEventListener('click', () => {
+        audioContext.resume();
+    }, { once: true });
+</script>
 </body>
 </html>
